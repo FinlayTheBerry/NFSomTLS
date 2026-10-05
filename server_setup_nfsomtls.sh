@@ -7,10 +7,13 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
+rm -rf /tmp/nfsomtls/
+install -o +0 -g +0 -m 600 -d /tmp/nfsomtls/
+
 install -o +0 -g +0 -m 600 -d /nfs_certificates/
 
 pacman -S --needed --noconfirm iptables 1>/dev/null 2>&1
-read -r -d '' iptables_dot_rules << EOF
+IFS= read -r -d '' iptables_dot_rules << EOF
 *filter
 :INPUT DROP [0:0]
 :FORWARD DROP [0:0]
@@ -25,11 +28,11 @@ read -r -d '' iptables_dot_rules << EOF
 
 COMMIT
 EOF
-echo "${iptables_dot_rules}" > /etc/iptables/iptables.rules
-install -o +0 -g +0 -m 644  /etc/iptables/iptables.rules /etc/iptables/iptables.rules
+echo "${iptables_dot_rules}" > /tmp/nfsomtls/iptables.rules
+install -o +0 -g +0 -m 644  /tmp/nfsomtls/iptables.rules /etc/iptables/iptables.rules
 systemctl enable --now iptables
 systemctl restart iptables
-read -r -d '' ip6tables_dot_rules << EOF
+IFS= read -r -d '' ip6tables_dot_rules << EOF
 *filter
 :INPUT DROP [0:0]
 :FORWARD DROP [0:0]
@@ -44,13 +47,13 @@ read -r -d '' ip6tables_dot_rules << EOF
 
 COMMIT
 EOF
-echo "${ip6tables_dot_rules}" > /etc/iptables/ip6tables.rules
-install -o +0 -g +0 -m 644  /etc/iptables/ip6tables.rules /etc/iptables/ip6tables.rules
+echo "${ip6tables_dot_rules}" > /tmp/nfsomtls/ip6tables.rules
+install -o +0 -g +0 -m 644  /tmp/nfsomtls/ip6tables.rules /etc/iptables/ip6tables.rules
 systemctl enable --now ip6tables
 systemctl restart ip6tables
 
 pacman -S --needed --noconfirm nfs-utils 1>/dev/null 2>&1
-read -r -d '' nfs_dot_conf << EOF
+IFS= read -r -d '' nfs_dot_conf << EOF
 [general]
 # pipefs-directory=/var/lib/nfs/rpc_pipefs
 #
@@ -152,14 +155,14 @@ rdma=n
 [svcgssd]
 # principal=
 EOF
-echo "${nfs_dot_conf}" > /etc/nfs.conf
-install -o +0 -g +0 -m 644 /etc/nfs.conf /etc/nfs.conf
-read -r -d '' exports << EOF
+echo "${nfs_dot_conf}" > /tmp/nfsomtls/nfs.conf
+install -o +0 -g +0 -m 644 /tmp/nfsomtls/nfs.conf /etc/nfs.conf
+IFS= read -r -d '' exports << EOF
 /finserv/ 100.64.0.0/10(rw,sync,no_subtree_check,no_root_squash,crossmnt,xprtsec=mtls)
 /important_data/ 100.64.0.0/10(rw,sync,no_subtree_check,no_root_squash,crossmnt,xprtsec=mtls)
 EOF
-echo "${exports}" > /etc/exports
-install -o +0 -g +0 -m 644 /etc/exports /etc/exports
+echo "${exports}" > /tmp/nfsomtls/exports
+install -o +0 -g +0 -m 644 /tmp/nfsomtls/exports /etc/exports
 systemctl disable --now nfs-mountd 1>/dev/null 2>&1
 systemctl mask nfs-mountd
 systemctl disable --now nfs-server 1>/dev/null 2>&1
@@ -171,7 +174,7 @@ systemctl restart nfsv4-server
 exportfs -arv -d all 1>/dev/null 2>&1
 
 sudo -u yaybld yay -S --needed --noconfirm ktls-utils 1>/dev/null 2>&1
-read -r -d '' tlshd_config << EOF
+IFS= read -r -d '' tlshd_config << EOF
 #
 # Copyright (c) 2022 Oracle and/or its affiliates.
 #
@@ -221,9 +224,9 @@ x509.private_key= /nfs_certificates/nfsomtls.key
 #x509.pq.certificate= <pathname>
 #x509.pq.private_key= <pathname>
 EOF
-echo "${tlshd_config}" > /etc/tlshd/config
-install -o +0 -g +0 -m 644 /etc/tlshd/config /etc/tlshd/config
-read -r -d '' openssl_dot_conf << EOF
+echo "${tlshd_config}" > /tmp/nfsomtls/tlshd_config
+install -o +0 -g +0 -m 644 /tmp/nfsomtls/tlshd_config /etc/tlshd/config
+IFS= read -r -d '' openssl_dot_conf << EOF
 [ req ]
 default_bits        = 4096
 distinguished_name  = req_distinguished_name
@@ -246,22 +249,21 @@ subjectAltName = @alt_names
 DNS.1 = flamecraft.net
 IP.1  = $(tailscale ip -4)
 EOF
-echo "${openssl_dot_conf}" > /nfs_certificates/openssl.conf
-install -o +0 -g +0 -m 600 /nfs_certificates/openssl.conf /nfs_certificates/openssl.conf
+echo "${openssl_dot_conf}" > /tmp/nfsomtls/openssl.conf
 if [ ! -f "/nfs_certificates/nfsomtls.key" ]; then
-    openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:prime256v1 -out /nfs_certificates/nfsomtls.key
-    install -o +0 -g +0 -m 600 /nfs_certificates/nfsomtls.key /nfs_certificates/nfsomtls.key
+    openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:prime256v1 -out /tmp/nfsomtls/nfsomtls.key
+    install -o +0 -g +0 -m 600 /tmp/nfsomtls/nfsomtls.key /nfs_certificates/nfsomtls.key
 else
     echo "/nfs_certificates/nfsomtls.key already exists. Leaving as is."
 fi
 if [ ! -f "/nfs_certificates/nfsomtls.crt" ]; then
-    openssl req -x509 -new -nodes -key /nfs_certificates/nfsomtls.key -out /nfs_certificates/nfsomtls.crt -days 3650 -config /nfs_certificates/openssl.conf
-    install -o +0 -g +0 -m 600 /nfs_certificates/nfsomtls.crt /nfs_certificates/nfsomtls.crt
+    openssl req -x509 -new -nodes -key /nfs_certificates/nfsomtls.key -out /tmp/nfsomtls/nfsomtls.crt -days 3650 -config /tmp/nfsomtls/openssl.conf
+    install -o +0 -g +0 -m 600 /tmp/nfsomtls/nfsomtls.crt /nfs_certificates/nfsomtls.crt
 else
     echo "/nfs_certificates/nfsomtls.crt already exists. Leaving as is."
 fi
-rm /nfs_certificates/openssl.conf
 systemctl enable --now tlshd
 systemctl restart tlshd
 
+rm -rf /tmp/nfsomtls/
 echo "Done!"

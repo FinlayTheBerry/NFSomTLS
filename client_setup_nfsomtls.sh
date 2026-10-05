@@ -22,11 +22,13 @@ if [ ! -f "./server_ip" ]; then
     exit 1
 fi
 
+rm -rf /tmp/nfsomtls/
+install -o +0 -g +0 -m 600 -d /tmp/nfsomtls/
+
 install -o +0 -g +0 -m 600 -d /nfs_certificates/
-install -o +0 -g +0 -m 600 -d /nfs/
 
 pacman -S --needed --noconfirm iptables 1>/dev/null 2>&1
-read -r -d '' iptables_dot_rules << EOF
+IFS= read -r -d '' iptables_dot_rules << EOF
 *filter
 :INPUT DROP [0:0]
 :FORWARD DROP [0:0]
@@ -41,11 +43,11 @@ read -r -d '' iptables_dot_rules << EOF
 
 COMMIT
 EOF
-echo "${iptables_dot_rules}" > /etc/iptables/iptables.rules
-install -o +0 -g +0 -m 644  /etc/iptables/iptables.rules /etc/iptables/iptables.rules
+echo "${iptables_dot_rules}" > /tmp/nfsomtls/iptables.rules
+install -o +0 -g +0 -m 644  /tmp/nfsomtls/iptables.rules /etc/iptables/iptables.rules
 systemctl enable --now iptables
 systemctl restart iptables
-read -r -d '' ip6tables_dot_rules << EOF
+IFS= read -r -d '' ip6tables_dot_rules << EOF
 *filter
 :INPUT DROP [0:0]
 :FORWARD DROP [0:0]
@@ -60,21 +62,24 @@ read -r -d '' ip6tables_dot_rules << EOF
 
 COMMIT
 EOF
-echo "${ip6tables_dot_rules}" > /etc/iptables/ip6tables.rules
-install -o +0 -g +0 -m 644  /etc/iptables/ip6tables.rules /etc/iptables/ip6tables.rules
+echo "${ip6tables_dot_rules}" > /tmp/nfsomtls/ip6tables.rules
+install -o +0 -g +0 -m 644  /tmp/nfsomtls/ip6tables.rules /etc/iptables/ip6tables.rules
 systemctl enable --now ip6tables
 systemctl restart ip6tables
 
-read -r -d '' fstab << EOF
+IFS= read -r -d '' fstab << EOF
 
-# NFS
-$(cat ./server_ip):/ /nfs nfs rw,hard,tcp,nconnect=4,nfsvers=4.2,timeo=15,port=56366,nofail,_netdev,xprtsec=mtls 0 0
+# NFS ImportantData
+$(cat ./server_ip):/important_data /important_data nfs rw,hard,tcp,nconnect=4,nfsvers=4.2,timeo=15,port=56366,nofail,_netdev,xprtsec=mtls 0 0
+
+# NFS FinServ
+$(cat ./server_ip):/finserv /finserv nfs rw,hard,tcp,nconnect=4,nfsvers=4.2,timeo=15,port=56366,nofail,_netdev,xprtsec=mtls 0 0
 EOF
 echo "${fstab}" >> /etc/fstab
 nano /etc/fstab
 
 sudo -u yaybld yay -S --needed --noconfirm ktls-utils 1>/dev/null 2>&1
-read -r -d '' tlshd_config << EOF
+IFS= read -r -d '' tlshd_config << EOF
 #
 # Copyright (c) 2022 Oracle and/or its affiliates.
 #
@@ -98,9 +103,9 @@ read -r -d '' tlshd_config << EOF
 #
 
 [debug]
-loglevel=4
-tls=4
-nl=4
+loglevel=0
+tls=0
+nl=0
 
 [authenticate]
 #keyrings= <keyring>;<keyring>;<keyring>
@@ -124,11 +129,12 @@ x509.private_key= /nfs_certificates/nfsomtls.key
 #x509.pq.certificate= <pathname>
 #x509.pq.private_key= <pathname>
 EOF
-echo "${tlshd_config}" > /etc/tlshd/config
-install -o +0 -g +0 -m 644 /etc/tlshd/config /etc/tlshd/config
+echo "${tlshd_config}" > /tmp/nfsomtls/tlshd_config
+install -o +0 -g +0 -m 644 /tmp/nfsomtls/tlshd_config /etc/tlshd/config
 install -o +0 -g +0 -m 600 ./nfsomtls.key /nfs_certificates/nfsomtls.key
 install -o +0 -g +0 -m 600 ./nfsomtls.crt /nfs_certificates/nfsomtls.crt
 systemctl enable --now tlshd
 systemctl restart tlshd
 
+rm -rf /tmp/nfsomtls/
 echo "Done!"
