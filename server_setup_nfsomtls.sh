@@ -31,7 +31,7 @@ EOF
 echo "${iptables_dot_rules}" > /tmp/nfsomtls/iptables.rules
 install -o +0 -g +0 -m 644  /tmp/nfsomtls/iptables.rules /etc/iptables/iptables.rules
 systemctl enable --now iptables
-systemctl restart iptables
+systemctl reload iptables
 IFS= read -r -d '' ip6tables_dot_rules << EOF
 *filter
 :INPUT DROP [0:0]
@@ -50,7 +50,7 @@ EOF
 echo "${ip6tables_dot_rules}" > /tmp/nfsomtls/ip6tables.rules
 install -o +0 -g +0 -m 644  /tmp/nfsomtls/ip6tables.rules /etc/iptables/ip6tables.rules
 systemctl enable --now ip6tables
-systemctl restart ip6tables
+systemctl reload ip6tables
 
 pacman -S --needed --noconfirm nfs-utils 1>/dev/null 2>&1
 IFS= read -r -d '' nfs_dot_conf << EOF

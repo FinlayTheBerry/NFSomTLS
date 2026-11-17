@@ -70,10 +70,10 @@ systemctl restart ip6tables
 IFS= read -r -d '' fstab << EOF
 
 # NFS ImportantData
-$(cat ./server_ip):/important_data /important_data nfs rw,hard,tcp,nconnect=4,nfsvers=4.2,timeo=15,port=56366,nofail,_netdev,xprtsec=mtls 0 0
+$(cat ./server_ip):/important_data /important_data nfs rw,hard,tcp,nconnect=4,nfsvers=4.2,timeo=15,port=56366,nofail,_netdev,x-systemd.requires=tailscaled.service,x-systemd.after=tailscaled.service,xprtsec=mtls 0 0
 
 # NFS FinServ
-$(cat ./server_ip):/finserv /finserv nfs rw,hard,tcp,nconnect=4,nfsvers=4.2,timeo=15,port=56366,nofail,_netdev,xprtsec=mtls 0 0
+$(cat ./server_ip):/finserv /finserv nfs rw,hard,tcp,nconnect=4,nfsvers=4.2,timeo=15,port=56366,nofail,_netdev,x-systemd.requires=tailscaled.service,x-systemd.after=tailscaled.service,xprtsec=mtls 0 0
 EOF
 echo "${fstab}" >> /etc/fstab
 nano /etc/fstab
@@ -135,6 +135,8 @@ install -o +0 -g +0 -m 600 ./nfsomtls.key /nfs_certificates/nfsomtls.key
 install -o +0 -g +0 -m 600 ./nfsomtls.crt /nfs_certificates/nfsomtls.crt
 systemctl enable --now tlshd
 systemctl restart tlshd
+
+mount -a
 
 rm -rf /tmp/nfsomtls/
 echo "Done!"
